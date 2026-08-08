@@ -3,16 +3,17 @@
 import { Plus, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { computeZoneTotals } from "@/lib/totals";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, roundCurrency } from "@/lib/format";
 import { ACCENT_CLASSES } from "@/lib/accent";
 import { CurrencyInput } from "./CurrencyInput";
-import type { Zone } from "@/lib/types";
+import type { ShippingMethod, Zone } from "@/lib/types";
 
 const HEAD_CELL = "px-3 py-3 text-left font-body font-bold uppercase text-[11px] tracking-[0.08em]";
 const CELL = "px-3 py-2 border-b border-offwhite";
 const TEXT_INPUT = "w-full bg-transparent font-body text-sm py-1 focus:outline-none focus:bg-offwhite";
 const NUM_INPUT = "w-16 bg-transparent font-body text-sm py-1 text-right focus:outline-none focus:bg-offwhite";
 const PRICE_INPUT = "w-24 bg-transparent font-body text-sm py-1 text-right focus:outline-none focus:bg-offwhite";
+const NA_BADGE = "inline-block w-24 text-center font-body font-bold text-[11px] uppercase tracking-wide text-graytext bg-offwhite py-1.5";
 
 function TextField({
   exportMode,
@@ -31,8 +32,70 @@ function TextField({
   );
 }
 
+function PricePair({
+  exportMode,
+  method,
+  usdValue,
+  cadValue,
+  notAvailable,
+  onChangeUsd,
+  onChangeCad,
+  onToggleAvailability,
+}: {
+  exportMode?: boolean;
+  method: ShippingMethod;
+  usdValue: number;
+  cadValue: number;
+  notAvailable?: boolean;
+  onChangeUsd: (value: number) => void;
+  onChangeCad: (value: number) => void;
+  onToggleAvailability: () => void;
+}) {
+  if (exportMode) {
+    return (
+      <>
+        <td className={`${CELL} text-right`}>
+          {notAvailable ? <span className={NA_BADGE}>N/A</span> : <div className={PRICE_INPUT}>{formatCurrency(usdValue)}</div>}
+        </td>
+        <td className={`${CELL} text-right`}>
+          {notAvailable ? <span className={NA_BADGE}>N/A</span> : <div className={PRICE_INPUT}>{formatCurrency(cadValue)}</div>}
+        </td>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <td className={`${CELL} text-right`}>
+        <div className="flex items-center justify-end gap-1.5">
+          <input
+            type="checkbox"
+            checked={!!notAvailable}
+            onChange={onToggleAvailability}
+            title={`Mark ${method === "air" ? "Air" : "Sea"} not available`}
+            className="w-3.5 h-3.5 accent-graytext shrink-0"
+          />
+          {notAvailable ? (
+            <span className={NA_BADGE}>N/A</span>
+          ) : (
+            <CurrencyInput value={usdValue} onChange={onChangeUsd} className={PRICE_INPUT} />
+          )}
+        </div>
+      </td>
+      <td className={`${CELL} text-right`}>
+        {notAvailable ? (
+          <span className={NA_BADGE}>N/A</span>
+        ) : (
+          <CurrencyInput value={cadValue} onChange={onChangeCad} className={PRICE_INPUT} />
+        )}
+      </td>
+    </>
+  );
+}
+
 export function ItemsTable({ zone, exportMode }: { zone: Zone; exportMode?: boolean }) {
-  const { updateItemText, updateItemNumber, addItem, removeItem } = useStore();
+  const { updateItemText, updateItemNumber, addItem, removeItem, toggleItemAvailability, exchangeRate } =
+    useStore();
   const totals = computeZoneTotals(zone);
   const accentClasses = ACCENT_CLASSES[zone.accent];
 
@@ -85,38 +148,36 @@ export function ItemsTable({ zone, exportMode }: { zone: Zone; exportMode?: bool
                     className={TEXT_INPUT}
                   />
                 </td>
-                <td className={`${CELL} text-right`}>
-                  <CurrencyInput
-                    exportMode={exportMode}
-                    value={it.airUsd}
-                    onChange={(v) => updateItemNumber(zone.slug, it.id, "airUsd", v)}
-                    className={PRICE_INPUT}
-                  />
-                </td>
-                <td className={`${CELL} text-right`}>
-                  <CurrencyInput
-                    exportMode={exportMode}
-                    value={it.airCad}
-                    onChange={(v) => updateItemNumber(zone.slug, it.id, "airCad", v)}
-                    className={PRICE_INPUT}
-                  />
-                </td>
-                <td className={`${CELL} text-right`}>
-                  <CurrencyInput
-                    exportMode={exportMode}
-                    value={it.seaUsd}
-                    onChange={(v) => updateItemNumber(zone.slug, it.id, "seaUsd", v)}
-                    className={PRICE_INPUT}
-                  />
-                </td>
-                <td className={`${CELL} text-right`}>
-                  <CurrencyInput
-                    exportMode={exportMode}
-                    value={it.seaCad}
-                    onChange={(v) => updateItemNumber(zone.slug, it.id, "seaCad", v)}
-                    className={PRICE_INPUT}
-                  />
-                </td>
+                <PricePair
+                  exportMode={exportMode}
+                  method="air"
+                  usdValue={it.airUsd}
+                  cadValue={it.airCad}
+                  notAvailable={it.airNotAvailable}
+                  onChangeUsd={(v) => updateItemNumber(zone.slug, it.id, "airUsd", v)}
+                  onChangeCad={(v) => {
+                    updateItemNumber(zone.slug, it.id, "airCad", v);
+                    if (exchangeRate.rate) {
+                      updateItemNumber(zone.slug, it.id, "airUsd", roundCurrency(v / exchangeRate.rate));
+                    }
+                  }}
+                  onToggleAvailability={() => toggleItemAvailability(zone.slug, it.id, "air")}
+                />
+                <PricePair
+                  exportMode={exportMode}
+                  method="sea"
+                  usdValue={it.seaUsd}
+                  cadValue={it.seaCad}
+                  notAvailable={it.seaNotAvailable}
+                  onChangeUsd={(v) => updateItemNumber(zone.slug, it.id, "seaUsd", v)}
+                  onChangeCad={(v) => {
+                    updateItemNumber(zone.slug, it.id, "seaCad", v);
+                    if (exchangeRate.rate) {
+                      updateItemNumber(zone.slug, it.id, "seaUsd", roundCurrency(v / exchangeRate.rate));
+                    }
+                  }}
+                  onToggleAvailability={() => toggleItemAvailability(zone.slug, it.id, "sea")}
+                />
                 <td className={`${CELL} text-center`}>
                   {!exportMode && (
                     <button

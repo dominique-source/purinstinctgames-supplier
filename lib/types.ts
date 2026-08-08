@@ -9,7 +9,11 @@ export type ItemRow = {
   airCad: number;
   seaUsd: number;
   seaCad: number;
+  airNotAvailable?: boolean;
+  seaNotAvailable?: boolean;
 };
+
+export type ShippingMethod = "air" | "sea";
 
 export type ZoneStat = {
   value: string;

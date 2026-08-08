@@ -6,12 +6,12 @@ import { Download, Loader2 } from "lucide-react";
 export function Sidebar({
   currentPage,
   onNavigate,
-  onExport,
+  onOpenExport,
   exporting,
 }: {
   currentPage: number;
   onNavigate: (pageNumber: number) => void;
-  onExport: () => void;
+  onOpenExport: () => void;
   exporting: boolean;
 }) {
   return (
@@ -48,7 +48,7 @@ export function Sidebar({
         </ul>
         <div className="p-4 border-t border-white/10">
           <button
-            onClick={onExport}
+            onClick={onOpenExport}
             disabled={exporting}
             className="w-full flex items-center justify-center gap-2 bg-lime text-ink font-condensed font-black uppercase text-sm py-3 px-4 disabled:opacity-60"
           >
@@ -78,7 +78,7 @@ export function Sidebar({
             </button>
           ))}
           <button
-            onClick={onExport}
+            onClick={onOpenExport}
             disabled={exporting}
             className="shrink-0 flex items-center gap-1.5 bg-lime text-ink font-condensed font-black uppercase text-xs px-3 py-2 ml-1 disabled:opacity-60"
           >

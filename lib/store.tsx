@@ -12,7 +12,7 @@ import {
 import { INITIAL_STATE } from "./data";
 import { makeId } from "./format";
 import { fetchUsdToCad } from "./exchangeRate";
-import type { AppState, ItemRow } from "./types";
+import type { AppState, ItemRow, ShippingMethod } from "./types";
 
 const STORAGE_KEY = "purinstinct-supplier-order-state";
 
@@ -34,6 +34,7 @@ type StoreValue = {
   updateItemNumber: (slug: string, itemId: string, field: NumericItemField, value: number) => void;
   addItem: (slug: string) => void;
   removeItem: (slug: string, itemId: string) => void;
+  toggleItemAvailability: (slug: string, itemId: string, method: ShippingMethod) => void;
   exchangeRate: ExchangeRateState;
 };
 
@@ -177,6 +178,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const toggleItemAvailability = useCallback(
+    (slug: string, itemId: string, method: ShippingMethod) => {
+      const flagKey = method === "air" ? "airNotAvailable" : "seaNotAvailable";
+      const usdKey = method === "air" ? "airUsd" : "seaUsd";
+      const cadKey = method === "air" ? "airCad" : "seaCad";
+      setState((prev) => ({
+        ...prev,
+        zones: prev.zones.map((z) =>
+          z.slug !== slug
+            ? z
+            : {
+                ...z,
+                items: z.items.map((it) => {
+                  if (it.id !== itemId) return it;
+                  const nextFlag = !it[flagKey];
+                  return nextFlag
+                    ? { ...it, [flagKey]: true, [usdKey]: 0, [cadKey]: 0 }
+                    : { ...it, [flagKey]: false };
+                }),
+              }
+        ),
+      }));
+    },
+    []
+  );
+
   const value = useMemo<StoreValue>(
     () => ({
       state,
@@ -186,6 +213,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateItemNumber,
       addItem,
       removeItem,
+      toggleItemAvailability,
       exchangeRate,
     }),
     [
@@ -196,6 +224,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateItemNumber,
       addItem,
       removeItem,
+      toggleItemAvailability,
       exchangeRate,
     ]
   );

@@ -12,6 +12,10 @@ export function parseCurrencyInput(raw: string): number {
   return Number.isFinite(value) ? value : 0;
 }
 
+export function roundCurrency(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 let counter = 0;
 export function makeId(prefix: string): string {
   counter += 1;
