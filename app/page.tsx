@@ -9,12 +9,12 @@ import { useStore } from "@/lib/store";
 import { canvasesToPdf, EXPORT_PAGE_WIDTH_PX } from "@/lib/pdf";
 import type { Zone } from "@/lib/types";
 
-function renderPage(pageNumber: number, zones: Zone[]) {
-  if (pageNumber === 1) return <CoverPage />;
+function renderPage(pageNumber: number, zones: Zone[], exportMode?: boolean) {
+  if (pageNumber === 1) return <CoverPage exportMode={exportMode} />;
   if (pageNumber === 10) return <QuotationPage />;
   const zone = zones.find((z) => z.pageNumber === pageNumber);
   if (!zone) return null;
-  return <ZonePage zone={zone} />;
+  return <ZonePage zone={zone} exportMode={exportMode} />;
 }
 
 export default function Home() {
@@ -85,7 +85,7 @@ export default function Home() {
         }}
       >
         <div ref={exportRootRef} style={{ width: EXPORT_PAGE_WIDTH_PX, background: "#F4F4EF" }}>
-          {exportPageNumber !== null && renderPage(exportPageNumber, state.zones)}
+          {exportPageNumber !== null && renderPage(exportPageNumber, state.zones, true)}
         </div>
       </div>
     </div>

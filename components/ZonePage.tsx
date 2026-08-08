@@ -8,7 +8,7 @@ import { PhotoUpload } from "./PhotoUpload";
 import { ItemsTable } from "./ItemsTable";
 import type { Zone } from "@/lib/types";
 
-export function ZonePage({ zone }: { zone: Zone }) {
+export function ZonePage({ zone, exportMode }: { zone: Zone; exportMode?: boolean }) {
   const { setZonePhoto } = useStore();
   const accentClasses = ACCENT_CLASSES[zone.accent];
 
@@ -47,7 +47,7 @@ export function ZonePage({ zone }: { zone: Zone }) {
           </div>
         </div>
 
-        <ItemsTable zone={zone} />
+        <ItemsTable zone={zone} exportMode={exportMode} />
       </div>
 
       <PageFooter pageNumber={zone.pageNumber} />

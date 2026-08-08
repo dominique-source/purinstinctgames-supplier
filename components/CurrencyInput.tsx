@@ -7,10 +7,12 @@ export function CurrencyInput({
   value,
   onChange,
   className,
+  exportMode,
 }: {
   value: number;
   onChange: (value: number) => void;
   className?: string;
+  exportMode?: boolean;
 }) {
   const [text, setText] = useState(value === 0 ? "" : formatCurrency(value));
   const [focused, setFocused] = useState(false);
@@ -18,6 +20,10 @@ export function CurrencyInput({
   useEffect(() => {
     if (!focused) setText(value === 0 ? "" : formatCurrency(value));
   }, [value, focused]);
+
+  if (exportMode) {
+    return <div className={className}>{formatCurrency(value)}</div>;
+  }
 
   return (
     <input
