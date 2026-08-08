@@ -193,7 +193,7 @@ export const INITIAL_ZONES: Zone[] = [
 ];
 
 export const INITIAL_STATE: AppState = {
-  cover: { dateBadge: "AUGUST 2026" },
+  cover: { dateBadge: "AUGUST 2026", photo: null, photoOriginal: null },
   zones: INITIAL_ZONES,
 };
 

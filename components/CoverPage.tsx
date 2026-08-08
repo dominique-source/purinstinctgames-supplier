@@ -2,9 +2,10 @@
 
 import { useStore } from "@/lib/store";
 import { PageFooter } from "./PageFooter";
+import { CoverImageUpload } from "./CoverImageUpload";
 
 export function CoverPage({ exportMode }: { exportMode?: boolean } = {}) {
-  const { state, updateDateBadge, exchangeRate } = useStore();
+  const { state, updateDateBadge, setCoverPhoto, setCoverPhotoCrop, exchangeRate } = useStore();
   const dateClassName =
     "bg-transparent border border-lime text-lime font-condensed font-black uppercase text-sm tracking-[0.1em] px-4 py-2 text-center focus:outline-none focus:bg-lime-10";
 
@@ -17,11 +18,12 @@ export function CoverPage({ exportMode }: { exportMode?: boolean } = {}) {
   return (
     <div className="flex flex-col min-h-full">
       <div className="bg-ink flex-1 flex flex-col items-center justify-center px-4 py-6 md:px-10 md:py-8 gap-6">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/images/intro.png"
-          alt="PürInstinct Games — Supplier Order & Pricing Request"
-          className="w-full max-w-5xl"
+        <CoverImageUpload
+          photo={state.cover.photo}
+          photoOriginal={state.cover.photoOriginal}
+          onCropped={setCoverPhotoCrop}
+          onReset={() => setCoverPhoto(null)}
+          exportMode={exportMode}
         />
 
         <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4">

@@ -29,6 +29,8 @@ type ExchangeRateState = {
 type StoreValue = {
   state: AppState;
   updateDateBadge: (value: string) => void;
+  setCoverPhoto: (photo: string | null) => void;
+  setCoverPhotoCrop: (photo: string, photoOriginal: string) => void;
   setZonePhoto: (slug: string, photo: string | null) => void;
   setZonePhotoCrop: (slug: string, photo: string, photoOriginal: string) => void;
   updateItemText: (slug: string, itemId: string, field: TextItemField, value: string) => void;
@@ -97,6 +99,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const updateDateBadge = useCallback((value: string) => {
     setState((prev) => ({ ...prev, cover: { ...prev.cover, dateBadge: value } }));
+  }, []);
+
+  const setCoverPhoto = useCallback((photo: string | null) => {
+    setState((prev) => ({
+      ...prev,
+      cover: { ...prev.cover, photo, photoOriginal: null },
+    }));
+  }, []);
+
+  const setCoverPhotoCrop = useCallback((photo: string, photoOriginal: string) => {
+    setState((prev) => ({
+      ...prev,
+      cover: { ...prev.cover, photo, photoOriginal },
+    }));
   }, []);
 
   const setZonePhoto = useCallback((slug: string, photo: string | null) => {
@@ -218,6 +234,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     () => ({
       state,
       updateDateBadge,
+      setCoverPhoto,
+      setCoverPhotoCrop,
       setZonePhoto,
       setZonePhotoCrop,
       updateItemText,
@@ -230,6 +248,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [
       state,
       updateDateBadge,
+      setCoverPhoto,
+      setCoverPhotoCrop,
       setZonePhoto,
       setZonePhotoCrop,
       updateItemText,

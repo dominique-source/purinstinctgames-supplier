@@ -34,6 +34,8 @@ export type Zone = {
 
 export type CoverData = {
   dateBadge: string;
+  photo: string | null;
+  photoOriginal?: string | null;
 };
 
 export type AppState = {
