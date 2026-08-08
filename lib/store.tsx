@@ -11,12 +11,20 @@ import {
 } from "react";
 import { INITIAL_STATE } from "./data";
 import { makeId } from "./format";
+import { fetchUsdToCad } from "./exchangeRate";
 import type { AppState, ItemRow } from "./types";
 
 const STORAGE_KEY = "purinstinct-supplier-order-state";
 
 type NumericItemField = "qty" | "airUsd" | "airCad" | "seaUsd" | "seaCad";
 type TextItemField = "item" | "size";
+
+type ExchangeRateState = {
+  rate: number | null;
+  asOf: string | null;
+  loading: boolean;
+  error: boolean;
+};
 
 type StoreValue = {
   state: AppState;
@@ -26,6 +34,7 @@ type StoreValue = {
   updateItemNumber: (slug: string, itemId: string, field: NumericItemField, value: number) => void;
   addItem: (slug: string) => void;
   removeItem: (slug: string, itemId: string) => void;
+  exchangeRate: ExchangeRateState;
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -47,10 +56,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
   const hydrated = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [exchangeRate, setExchangeRate] = useState<ExchangeRateState>({
+    rate: null,
+    asOf: null,
+    loading: true,
+    error: false,
+  });
 
   useEffect(() => {
     setState(loadState());
     hydrated.current = true;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchUsdToCad()
+      .then((r) => {
+        if (!cancelled) setExchangeRate({ rate: r.rate, asOf: r.asOf, loading: false, error: false });
+      })
+      .catch(() => {
+        if (!cancelled) setExchangeRate((prev) => ({ ...prev, loading: false, error: true }));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -157,8 +186,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateItemNumber,
       addItem,
       removeItem,
+      exchangeRate,
     }),
-    [state, updateDateBadge, setZonePhoto, updateItemText, updateItemNumber, addItem, removeItem]
+    [
+      state,
+      updateDateBadge,
+      setZonePhoto,
+      updateItemText,
+      updateItemNumber,
+      addItem,
+      removeItem,
+      exchangeRate,
+    ]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
