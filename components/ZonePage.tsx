@@ -9,7 +9,7 @@ import { ItemsTable } from "./ItemsTable";
 import type { Zone } from "@/lib/types";
 
 export function ZonePage({ zone, exportMode }: { zone: Zone; exportMode?: boolean }) {
-  const { setZonePhoto } = useStore();
+  const { setZonePhoto, setZonePhotoCrop } = useStore();
   const accentClasses = ACCENT_CLASSES[zone.accent];
 
   return (
@@ -19,8 +19,12 @@ export function ZonePage({ zone, exportMode }: { zone: Zone; exportMode?: boolea
       <div className="flex-1 px-6 py-8 md:px-10 md:py-10 space-y-6">
         <PhotoUpload
           photo={zone.photo}
-          onChange={(dataUrl) => setZonePhoto(zone.slug, dataUrl)}
+          photoOriginal={zone.photoOriginal}
+          onCropped={(photo, photoOriginal) => setZonePhotoCrop(zone.slug, photo, photoOriginal)}
+          onRemove={() => setZonePhoto(zone.slug, null)}
+          aspect={21 / 9}
           className="w-full aspect-[21/9] min-h-[220px]"
+          exportMode={exportMode}
         />
 
         <div className="bg-paper border border-offwhite px-6 py-5">

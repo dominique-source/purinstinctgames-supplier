@@ -30,6 +30,7 @@ type StoreValue = {
   state: AppState;
   updateDateBadge: (value: string) => void;
   setZonePhoto: (slug: string, photo: string | null) => void;
+  setZonePhotoCrop: (slug: string, photo: string, photoOriginal: string) => void;
   updateItemText: (slug: string, itemId: string, field: TextItemField, value: string) => void;
   updateItemNumber: (slug: string, itemId: string, field: NumericItemField, value: number) => void;
   addItem: (slug: string) => void;
@@ -101,7 +102,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const setZonePhoto = useCallback((slug: string, photo: string | null) => {
     setState((prev) => ({
       ...prev,
-      zones: prev.zones.map((z) => (z.slug === slug ? { ...z, photo } : z)),
+      zones: prev.zones.map((z) =>
+        z.slug === slug ? { ...z, photo, photoOriginal: null } : z
+      ),
+    }));
+  }, []);
+
+  const setZonePhotoCrop = useCallback((slug: string, photo: string, photoOriginal: string) => {
+    setState((prev) => ({
+      ...prev,
+      zones: prev.zones.map((z) => (z.slug === slug ? { ...z, photo, photoOriginal } : z)),
     }));
   }, []);
 
@@ -209,6 +219,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       state,
       updateDateBadge,
       setZonePhoto,
+      setZonePhotoCrop,
       updateItemText,
       updateItemNumber,
       addItem,
@@ -220,6 +231,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       state,
       updateDateBadge,
       setZonePhoto,
+      setZonePhotoCrop,
       updateItemText,
       updateItemNumber,
       addItem,

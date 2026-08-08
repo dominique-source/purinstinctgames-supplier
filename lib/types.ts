@@ -28,6 +28,7 @@ export type Zone = {
   stats: ZoneStat[];
   note?: string;
   photo: string | null;
+  photoOriginal?: string | null;
   items: ItemRow[];
 };
 
