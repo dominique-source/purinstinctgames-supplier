@@ -40,9 +40,7 @@ export default function Home() {
 
     (async () => {
       const html2canvas = (await import("html2canvas")).default;
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-      );
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
       if (cancelled || !exportRootRef.current) return;
 
       const canvas = await html2canvas(exportRootRef.current, {

@@ -6,9 +6,11 @@ import { ImagePlus, X } from "lucide-react";
 export function PhotoUpload({
   photo,
   onChange,
+  className = "w-full h-full min-h-[220px]",
 }: {
   photo: string | null;
   onChange: (dataUrl: string | null) => void;
+  className?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -21,7 +23,7 @@ export function PhotoUpload({
 
   if (photo) {
     return (
-      <div className="relative w-full h-full min-h-[220px] border border-lime">
+      <div className={`relative border border-lime ${className}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={photo} alt="Zone reference" className="w-full h-full object-cover" />
         <button
@@ -38,7 +40,7 @@ export function PhotoUpload({
   return (
     <button
       onClick={() => inputRef.current?.click()}
-      className="w-full h-full min-h-[220px] border border-dashed border-lime flex flex-col items-center justify-center gap-3 text-graytext hover:text-ink"
+      className={`border border-dashed border-lime flex flex-col items-center justify-center gap-3 text-graytext hover:text-ink ${className}`}
     >
       <ImagePlus className="w-8 h-8 text-lime" strokeWidth={1.5} />
       <span className="font-body font-semibold uppercase text-xs tracking-[0.1em]">
