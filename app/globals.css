@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0a0a0a;
+  --color-lime: #ccff00;
+  --color-offwhite: #f4f4ef;
+  --color-paper: #ffffff;
+  --color-graytext: #8a8a85;
+
+  --color-zone-lime: #ccff00;
+  --color-zone-blue: #3b82f6;
+  --color-zone-gold: #d4a72c;
+  --color-zone-teal: #2aa198;
+  --color-zone-purple: #7c3aed;
+  --color-zone-red: #dc2626;
+
+  --font-condensed: var(--font-barlow-condensed);
+  --font-body: var(--font-barlow);
+}
+
+html,
+body {
+  background: var(--color-offwhite);
+  color: var(--color-ink);
+}
+
+body {
+  font-family: var(--font-body), sans-serif;
+}
+
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-graytext);
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/*
+ * Solid rgba variants instead of Tailwind's /opacity modifiers.
+ * html2canvas (used for PDF export) cannot parse the color-mix()/oklab
+ * functions Tailwind v4 emits for opacity modifiers, and hangs on them.
+ * Any element that can end up inside an exported page must use these
+ * instead of e.g. `text-white/70`.
+ */
+.text-white-90 {
+  color: rgba(255, 255, 255, 0.9);
+}
+.text-white-80 {
+  color: rgba(255, 255, 255, 0.8);
+}
+.text-white-70 {
+  color: rgba(255, 255, 255, 0.7);
+}
+.text-white-50 {
+  color: rgba(255, 255, 255, 0.5);
+}
+.bg-white-5 {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.border-white-10 {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.bg-lime-10 {
+  background-color: rgba(204, 255, 0, 0.1);
+}
