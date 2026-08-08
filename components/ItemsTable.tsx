@@ -154,7 +154,12 @@ export function ItemsTable({ zone, exportMode }: { zone: Zone; exportMode?: bool
                   usdValue={it.airUsd}
                   cadValue={it.airCad}
                   notAvailable={it.airNotAvailable}
-                  onChangeUsd={(v) => updateItemNumber(zone.slug, it.id, "airUsd", v)}
+                  onChangeUsd={(v) => {
+                    updateItemNumber(zone.slug, it.id, "airUsd", v);
+                    if (exchangeRate.rate) {
+                      updateItemNumber(zone.slug, it.id, "airCad", roundCurrency(v * exchangeRate.rate));
+                    }
+                  }}
                   onChangeCad={(v) => {
                     updateItemNumber(zone.slug, it.id, "airCad", v);
                     if (exchangeRate.rate) {
@@ -169,7 +174,12 @@ export function ItemsTable({ zone, exportMode }: { zone: Zone; exportMode?: bool
                   usdValue={it.seaUsd}
                   cadValue={it.seaCad}
                   notAvailable={it.seaNotAvailable}
-                  onChangeUsd={(v) => updateItemNumber(zone.slug, it.id, "seaUsd", v)}
+                  onChangeUsd={(v) => {
+                    updateItemNumber(zone.slug, it.id, "seaUsd", v);
+                    if (exchangeRate.rate) {
+                      updateItemNumber(zone.slug, it.id, "seaCad", roundCurrency(v * exchangeRate.rate));
+                    }
+                  }}
                   onChangeCad={(v) => {
                     updateItemNumber(zone.slug, it.id, "seaCad", v);
                     if (exchangeRate.rate) {
