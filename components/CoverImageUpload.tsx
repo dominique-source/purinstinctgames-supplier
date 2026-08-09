@@ -18,7 +18,7 @@ export function CoverImageUpload({
 }: {
   photo: string | null;
   photoOriginal?: string | null;
-  onCropped: (photo: string, photoOriginal: string) => void;
+  onCropped: (photo: string, photoOriginal: string) => void | Promise<void>;
   onReset: () => void;
   exportMode?: boolean;
 }) {
@@ -92,8 +92,8 @@ export function CoverImageUpload({
           image={cropSource}
           aspect={ASPECT}
           onCancel={() => setCropSource(null)}
-          onApply={(cropped) => {
-            onCropped(cropped, cropSource);
+          onApply={async (cropped) => {
+            await onCropped(cropped, cropSource);
             setCropSource(null);
           }}
         />

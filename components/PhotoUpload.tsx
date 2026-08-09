@@ -18,7 +18,7 @@ export function PhotoUpload({
 }: {
   photo: string | null;
   photoOriginal?: string | null;
-  onCropped: (photo: string, photoOriginal: string) => void;
+  onCropped: (photo: string, photoOriginal: string) => void | Promise<void>;
   onRemove: () => void;
   aspect?: number;
   className?: string;
@@ -74,8 +74,8 @@ export function PhotoUpload({
             image={cropSource}
             aspect={aspect}
             onCancel={() => setCropSource(null)}
-            onApply={(cropped) => {
-              onCropped(cropped, cropSource);
+            onApply={async (cropped) => {
+              await onCropped(cropped, cropSource);
               setCropSource(null);
             }}
           />
@@ -107,8 +107,8 @@ export function PhotoUpload({
           image={cropSource}
           aspect={aspect}
           onCancel={() => setCropSource(null)}
-          onApply={(cropped) => {
-            onCropped(cropped, cropSource);
+          onApply={async (cropped) => {
+            await onCropped(cropped, cropSource);
             setCropSource(null);
           }}
         />

@@ -9,12 +9,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { INITIAL_STATE } from "./data";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { INITIAL_ZONES } from "./data";
 import { makeId } from "./format";
 import { fetchUsdToCad } from "./exchangeRate";
-import type { AppState, ItemRow, ShippingMethod } from "./types";
-
-const STORAGE_KEY = "purinstinct-supplier-order-state";
+import { db, ensureAnonymousAuth, firebaseConfigured } from "./firebase";
+import { uploadDataUrl, deleteIfExists } from "./imageStorage";
+import type { AppState, CoverData, ItemRow, ShippingMethod, Zone } from "./types";
 
 type NumericItemField = "qty" | "airUsd" | "airCad" | "seaUsd" | "seaCad";
 type TextItemField = "item" | "size";
@@ -28,11 +29,13 @@ type ExchangeRateState = {
 
 type StoreValue = {
   state: AppState;
+  loading: boolean;
+  configured: boolean;
   updateDateBadge: (value: string) => void;
-  setCoverPhoto: (photo: string | null) => void;
-  setCoverPhotoCrop: (photo: string, photoOriginal: string) => void;
-  setZonePhoto: (slug: string, photo: string | null) => void;
-  setZonePhotoCrop: (slug: string, photo: string, photoOriginal: string) => void;
+  setCoverPhoto: () => void;
+  setCoverPhotoCrop: (photo: string, photoOriginal: string) => Promise<void>;
+  setZonePhoto: (slug: string) => void;
+  setZonePhotoCrop: (slug: string, photo: string, photoOriginal: string) => Promise<void>;
   updateItemText: (slug: string, itemId: string, field: TextItemField, value: string) => void;
   updateItemNumber: (slug: string, itemId: string, field: NumericItemField, value: number) => void;
   addItem: (slug: string) => void;
@@ -43,34 +46,25 @@ type StoreValue = {
 
 const StoreContext = createContext<StoreValue | null>(null);
 
-function loadState(): AppState {
-  if (typeof window === "undefined") return INITIAL_STATE;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return INITIAL_STATE;
-    const parsed = JSON.parse(raw) as AppState;
-    if (!parsed.cover || !Array.isArray(parsed.zones)) return INITIAL_STATE;
-    return parsed;
-  } catch {
-    return INITIAL_STATE;
-  }
+const DEFAULT_COVER: CoverData = { dateBadge: "AUGUST 2026", photo: null, photoOriginal: null };
+
+function buildInitialState(): AppState {
+  return {
+    cover: { ...DEFAULT_COVER },
+    zones: INITIAL_ZONES.map((z) => ({ ...z, items: z.items.map((it) => ({ ...it })) })),
+  };
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AppState>(INITIAL_STATE);
-  const hydrated = useRef(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [state, setState] = useState<AppState>(buildInitialState);
+  const [loading, setLoading] = useState(firebaseConfigured);
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [exchangeRate, setExchangeRate] = useState<ExchangeRateState>({
     rate: null,
     asOf: null,
     loading: true,
     error: false,
   });
-
-  useEffect(() => {
-    setState(loadState());
-    hydrated.current = true;
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,152 +81,279 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated.current) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }, 300);
+    if (!firebaseConfigured || !db) return;
+
+    let cancelled = false;
+    const unsubscribers: Array<() => void> = [];
+    const seenDocs = new Set<string>();
+    const expectedDocs = 1 + INITIAL_ZONES.length;
+
+    function markSeen(key: string) {
+      seenDocs.add(key);
+      if (seenDocs.size >= expectedDocs) setLoading(false);
+    }
+
+    ensureAnonymousAuth().then(() => {
+      const database = db;
+      if (cancelled || !database) return;
+
+      unsubscribers.push(
+        onSnapshot(doc(database, "cover", "main"), (snap) => {
+          const data = snap.data() as Partial<CoverData> | undefined;
+          setState((prev) => ({
+            ...prev,
+            cover: {
+              dateBadge: data?.dateBadge ?? prev.cover.dateBadge,
+              photo: data?.photo ?? null,
+              photoOriginal: data?.photoOriginal ?? null,
+            },
+          }));
+          markSeen("cover");
+        })
+      );
+
+      INITIAL_ZONES.forEach((zoneSeed) => {
+        unsubscribers.push(
+          onSnapshot(doc(database, "zones", zoneSeed.slug), (snap) => {
+            const data = snap.data() as
+              | { items?: ItemRow[]; photo?: string | null; photoOriginal?: string | null }
+              | undefined;
+            setState((prev) => ({
+              ...prev,
+              zones: prev.zones.map((z) =>
+                z.slug !== zoneSeed.slug
+                  ? z
+                  : {
+                      ...z,
+                      items: data?.items !== undefined ? data.items : zoneSeed.items,
+                      photo: data?.photo ?? null,
+                      photoOriginal: data?.photoOriginal ?? null,
+                    }
+              ),
+            }));
+            markSeen(zoneSeed.slug);
+          })
+        );
+      });
+    });
+
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      cancelled = true;
+      unsubscribers.forEach((u) => u());
     };
-  }, [state]);
-
-  const updateDateBadge = useCallback((value: string) => {
-    setState((prev) => ({ ...prev, cover: { ...prev.cover, dateBadge: value } }));
   }, []);
 
-  const setCoverPhoto = useCallback((photo: string | null) => {
+  const scheduleSave = useCallback((key: string, fn: () => void, delay = 300) => {
+    if (saveTimers.current[key]) clearTimeout(saveTimers.current[key]);
+    saveTimers.current[key] = setTimeout(fn, delay);
+  }, []);
+
+  const scheduleZoneItemsSave = useCallback(
+    (slug: string, zones: Zone[]) => {
+      const database = db;
+      if (!database) return;
+      scheduleSave(`zone:${slug}`, () => {
+        const zone = zones.find((z) => z.slug === slug);
+        if (!zone) return;
+        setDoc(doc(database, "zones", slug), { items: zone.items }, { merge: true }).catch(() => {});
+      });
+    },
+    [scheduleSave]
+  );
+
+  const updateDateBadge = useCallback(
+    (value: string) => {
+      const database = db;
+      setState((prev) => {
+        const next = { ...prev, cover: { ...prev.cover, dateBadge: value } };
+        if (database) {
+          scheduleSave("cover:dateBadge", () => {
+            setDoc(doc(database, "cover", "main"), { dateBadge: value }, { merge: true }).catch(() => {});
+          });
+        }
+        return next;
+      });
+    },
+    [scheduleSave]
+  );
+
+  const setCoverPhoto = useCallback(() => {
+    setState((prev) => ({ ...prev, cover: { ...prev.cover, photo: null, photoOriginal: null } }));
+    if (db) {
+      setDoc(doc(db, "cover", "main"), { photo: null, photoOriginal: null }, { merge: true }).catch(() => {});
+    }
+    deleteIfExists("cover/photo.jpg");
+    deleteIfExists("cover/photoOriginal.jpg");
+  }, []);
+
+  const setCoverPhotoCrop = useCallback(async (photo: string, photoOriginal: string) => {
+    if (!db) return;
+    const [photoUrl, photoOriginalUrl] = await Promise.all([
+      uploadDataUrl("cover/photo.jpg", photo),
+      uploadDataUrl("cover/photoOriginal.jpg", photoOriginal),
+    ]);
     setState((prev) => ({
       ...prev,
-      cover: { ...prev.cover, photo, photoOriginal: null },
+      cover: { ...prev.cover, photo: photoUrl, photoOriginal: photoOriginalUrl },
     }));
+    await setDoc(
+      doc(db, "cover", "main"),
+      { photo: photoUrl, photoOriginal: photoOriginalUrl },
+      { merge: true }
+    );
   }, []);
 
-  const setCoverPhotoCrop = useCallback((photo: string, photoOriginal: string) => {
+  const setZonePhoto = useCallback((slug: string) => {
     setState((prev) => ({
       ...prev,
-      cover: { ...prev.cover, photo, photoOriginal },
+      zones: prev.zones.map((z) => (z.slug === slug ? { ...z, photo: null, photoOriginal: null } : z)),
     }));
+    if (db) {
+      setDoc(doc(db, "zones", slug), { photo: null, photoOriginal: null }, { merge: true }).catch(() => {});
+    }
+    deleteIfExists(`zones/${slug}/photo.jpg`);
+    deleteIfExists(`zones/${slug}/photoOriginal.jpg`);
   }, []);
 
-  const setZonePhoto = useCallback((slug: string, photo: string | null) => {
+  const setZonePhotoCrop = useCallback(async (slug: string, photo: string, photoOriginal: string) => {
+    if (!db) return;
+    const [photoUrl, photoOriginalUrl] = await Promise.all([
+      uploadDataUrl(`zones/${slug}/photo.jpg`, photo),
+      uploadDataUrl(`zones/${slug}/photoOriginal.jpg`, photoOriginal),
+    ]);
     setState((prev) => ({
       ...prev,
       zones: prev.zones.map((z) =>
-        z.slug === slug ? { ...z, photo, photoOriginal: null } : z
+        z.slug === slug ? { ...z, photo: photoUrl, photoOriginal: photoOriginalUrl } : z
       ),
     }));
-  }, []);
-
-  const setZonePhotoCrop = useCallback((slug: string, photo: string, photoOriginal: string) => {
-    setState((prev) => ({
-      ...prev,
-      zones: prev.zones.map((z) => (z.slug === slug ? { ...z, photo, photoOriginal } : z)),
-    }));
+    await setDoc(
+      doc(db, "zones", slug),
+      { photo: photoUrl, photoOriginal: photoOriginalUrl },
+      { merge: true }
+    );
   }, []);
 
   const updateItemText = useCallback(
     (slug: string, itemId: string, field: TextItemField, value: string) => {
-      setState((prev) => ({
-        ...prev,
-        zones: prev.zones.map((z) =>
-          z.slug !== slug
-            ? z
-            : {
-                ...z,
-                items: z.items.map((it) =>
-                  it.id === itemId ? { ...it, [field]: value } : it
-                ),
-              }
-        ),
-      }));
+      setState((prev) => {
+        const next = {
+          ...prev,
+          zones: prev.zones.map((z) =>
+            z.slug !== slug
+              ? z
+              : { ...z, items: z.items.map((it) => (it.id === itemId ? { ...it, [field]: value } : it)) }
+          ),
+        };
+        scheduleZoneItemsSave(slug, next.zones);
+        return next;
+      });
     },
-    []
+    [scheduleZoneItemsSave]
   );
 
   const updateItemNumber = useCallback(
     (slug: string, itemId: string, field: NumericItemField, value: number) => {
-      setState((prev) => ({
-        ...prev,
-        zones: prev.zones.map((z) =>
-          z.slug !== slug
-            ? z
-            : {
-                ...z,
-                items: z.items.map((it) =>
-                  it.id === itemId ? { ...it, [field]: value } : it
-                ),
-              }
-        ),
-      }));
+      setState((prev) => {
+        const next = {
+          ...prev,
+          zones: prev.zones.map((z) =>
+            z.slug !== slug
+              ? z
+              : { ...z, items: z.items.map((it) => (it.id === itemId ? { ...it, [field]: value } : it)) }
+          ),
+        };
+        scheduleZoneItemsSave(slug, next.zones);
+        return next;
+      });
     },
-    []
+    [scheduleZoneItemsSave]
   );
 
-  const addItem = useCallback((slug: string) => {
-    setState((prev) => ({
-      ...prev,
-      zones: prev.zones.map((z) =>
-        z.slug !== slug
-          ? z
-          : {
-              ...z,
-              items: [
-                ...z.items,
-                {
-                  id: makeId(slug),
-                  item: "",
-                  qty: 1,
-                  size: "",
-                  airUsd: 0,
-                  airCad: 0,
-                  seaUsd: 0,
-                  seaCad: 0,
-                } satisfies ItemRow,
-              ],
-            }
-      ),
-    }));
-  }, []);
+  const addItem = useCallback(
+    (slug: string) => {
+      setState((prev) => {
+        const next = {
+          ...prev,
+          zones: prev.zones.map((z) =>
+            z.slug !== slug
+              ? z
+              : {
+                  ...z,
+                  items: [
+                    ...z.items,
+                    {
+                      id: makeId(slug),
+                      item: "",
+                      qty: 1,
+                      size: "",
+                      airUsd: 0,
+                      airCad: 0,
+                      seaUsd: 0,
+                      seaCad: 0,
+                    } satisfies ItemRow,
+                  ],
+                }
+          ),
+        };
+        scheduleZoneItemsSave(slug, next.zones);
+        return next;
+      });
+    },
+    [scheduleZoneItemsSave]
+  );
 
-  const removeItem = useCallback((slug: string, itemId: string) => {
-    setState((prev) => ({
-      ...prev,
-      zones: prev.zones.map((z) =>
-        z.slug !== slug ? z : { ...z, items: z.items.filter((it) => it.id !== itemId) }
-      ),
-    }));
-  }, []);
+  const removeItem = useCallback(
+    (slug: string, itemId: string) => {
+      setState((prev) => {
+        const next = {
+          ...prev,
+          zones: prev.zones.map((z) =>
+            z.slug !== slug ? z : { ...z, items: z.items.filter((it) => it.id !== itemId) }
+          ),
+        };
+        scheduleZoneItemsSave(slug, next.zones);
+        return next;
+      });
+    },
+    [scheduleZoneItemsSave]
+  );
 
   const toggleItemAvailability = useCallback(
     (slug: string, itemId: string, method: ShippingMethod) => {
       const flagKey = method === "air" ? "airNotAvailable" : "seaNotAvailable";
       const usdKey = method === "air" ? "airUsd" : "seaUsd";
       const cadKey = method === "air" ? "airCad" : "seaCad";
-      setState((prev) => ({
-        ...prev,
-        zones: prev.zones.map((z) =>
-          z.slug !== slug
-            ? z
-            : {
-                ...z,
-                items: z.items.map((it) => {
-                  if (it.id !== itemId) return it;
-                  const nextFlag = !it[flagKey];
-                  return nextFlag
-                    ? { ...it, [flagKey]: true, [usdKey]: 0, [cadKey]: 0 }
-                    : { ...it, [flagKey]: false };
-                }),
-              }
-        ),
-      }));
+      setState((prev) => {
+        const next = {
+          ...prev,
+          zones: prev.zones.map((z) =>
+            z.slug !== slug
+              ? z
+              : {
+                  ...z,
+                  items: z.items.map((it) => {
+                    if (it.id !== itemId) return it;
+                    const nextFlag = !it[flagKey];
+                    return nextFlag
+                      ? { ...it, [flagKey]: true, [usdKey]: 0, [cadKey]: 0 }
+                      : { ...it, [flagKey]: false };
+                  }),
+                }
+          ),
+        };
+        scheduleZoneItemsSave(slug, next.zones);
+        return next;
+      });
     },
-    []
+    [scheduleZoneItemsSave]
   );
 
   const value = useMemo<StoreValue>(
     () => ({
       state,
+      loading,
+      configured: firebaseConfigured,
       updateDateBadge,
       setCoverPhoto,
       setCoverPhotoCrop,
@@ -247,6 +368,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       state,
+      loading,
       updateDateBadge,
       setCoverPhoto,
       setCoverPhotoCrop,

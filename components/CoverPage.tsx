@@ -22,7 +22,7 @@ export function CoverPage({ exportMode }: { exportMode?: boolean } = {}) {
           photo={state.cover.photo}
           photoOriginal={state.cover.photoOriginal}
           onCropped={setCoverPhotoCrop}
-          onReset={() => setCoverPhoto(null)}
+          onReset={setCoverPhoto}
           exportMode={exportMode}
         />
 

@@ -21,7 +21,7 @@ export function ZonePage({ zone, exportMode }: { zone: Zone; exportMode?: boolea
           photo={zone.photo}
           photoOriginal={zone.photoOriginal}
           onCropped={(photo, photoOriginal) => setZonePhotoCrop(zone.slug, photo, photoOriginal)}
-          onRemove={() => setZonePhoto(zone.slug, null)}
+          onRemove={() => setZonePhoto(zone.slug)}
           aspect={21 / 9}
           className="w-full aspect-[21/9] min-h-[220px]"
           exportMode={exportMode}

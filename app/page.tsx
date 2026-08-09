@@ -22,7 +22,7 @@ function renderPage(pageNumber: number, zones: Zone[], exportMode?: boolean) {
 const ALL_PAGE_NUMBERS = NAV_PAGES.map((p) => p.pageNumber);
 
 export default function Home() {
-  const { state } = useStore();
+  const { state, loading, configured } = useStore();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedPages, setSelectedPages] = useState<Set<number>>(
     () => new Set(ALL_PAGE_NUMBERS)
@@ -69,6 +69,16 @@ export default function Home() {
 
   const exportPageNumber = exportQueue !== null ? exportQueue[exportIndex] : null;
 
+  if (configured && loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-offwhite">
+        <span className="font-condensed font-bold uppercase text-sm tracking-[0.1em] text-graytext">
+          Loading…
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen">
       <Sidebar
@@ -78,7 +88,12 @@ export default function Home() {
         exporting={exporting}
       />
 
-      <main className="flex-1 bg-offwhite">
+      <main className="flex-1 bg-offwhite flex flex-col">
+        {!configured && (
+          <div className="bg-zone-red text-white font-body text-xs uppercase tracking-[0.08em] text-center py-2 px-4">
+            Firebase is not configured — changes will not be saved. See README for setup.
+          </div>
+        )}
         {renderPage(currentPage, state.zones)}
       </main>
 

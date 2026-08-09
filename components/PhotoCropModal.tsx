@@ -16,7 +16,7 @@ export function PhotoCropModal({
   image: string;
   aspect: number;
   onCancel: () => void;
-  onApply: (croppedDataUrl: string) => void;
+  onApply: (croppedDataUrl: string) => void | Promise<void>;
 }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -30,10 +30,13 @@ export function PhotoCropModal({
   async function handleApply() {
     if (!croppedAreaPixels) return;
     setSaving(true);
-    const outputHeight = Math.round(OUTPUT_WIDTH / aspect);
-    const result = await cropImage(image, croppedAreaPixels, OUTPUT_WIDTH, outputHeight);
-    setSaving(false);
-    onApply(result);
+    try {
+      const outputHeight = Math.round(OUTPUT_WIDTH / aspect);
+      const result = await cropImage(image, croppedAreaPixels, OUTPUT_WIDTH, outputHeight);
+      await onApply(result);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
